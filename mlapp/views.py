@@ -1,10 +1,12 @@
 from django.shortcuts import render, redirect
-from .forms import InputForm, LoginForm
+from .forms import InputForm, LoginForm, SignUpForm
 import joblib
 import numpy as np
 from .models import Customer
 from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
+
 
 # モデルの読み込み
 loaded_model = joblib.load('model/ml_model.pkl')
@@ -47,8 +49,15 @@ def result(request):
 
 @login_required
 def history(request):
-    customers = Customer.objects.all()
-    return render(request, 'mlapp/history.html', {'customers':customers})
+    if request.method == 'POST': # POSTメソッドが送信された場合
+        d_id = request.POST # POSTされた値を取得→顧客ID
+        d_customer = Customer.objects.filter(id=d_id['d_id']) # filterメソッドでidが一致するCustomerのデータを取得
+        d_customer.delete() # 取得した顧客データを消去
+        customers = Customer.objects.all() # 顧客全データを取得
+        return render(request, 'mlapp/history.html', {'customers':customers})
+    else:
+        customers = Customer.objects.all()
+        return render(request, 'mlapp/history.html', {'customers':customers})
 
 
 #　ログインページ
@@ -59,3 +68,25 @@ class Login(LoginView):
 # ログアウトページ
 class Logout(LogoutView):
     template_name = 'mlapp/base.html'
+
+
+def signup(request):
+  if request.method == 'POST':
+    form = SignUpForm(request.POST)
+    if form.is_valid():
+      form.save()
+      #フォームから'username'を読み取る
+      username = form.cleaned_data.get('username')
+      #フォームから'password1'を読み取る
+      password = form.cleaned_data.get('password1')
+      # 読み取った情報をログインに使用する情報として new_user に格納
+      new_user = authenticate(username=username, password=password)
+      if new_user is not None:
+         # new_user の情報からログイン処理を行う
+        login(request, new_user)
+        # ログイン後のリダイレクト処理
+      return redirect('index')
+  # POST で送信がなかった場合の処理
+  else:
+    form = SignUpForm()
+    return render(request, 'mlapp/signup.html', {'form': form})
